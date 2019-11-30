@@ -1,0 +1,97 @@
+变量的数据类型：
+	假设采用32位ARM机器
+	Load/store不同的C数据类型，效率不同。
+
+例：求校验和				//i声明为char的优缺点？
+int checksum_v1(int *data)			//char表达的范围超过了64，可以完成题目要求
+{						//char更节省寄存器和内存空间
+	char i;
+	int sum = 0;
+	for(i = 0; i < 64; i++)
+		sum += data[i];
+	return sum;
+}
+
+对应的汇编指令：
+checksum_v1_s
+	MOV	r2,r0			;r2 = data, 地址指针
+	MOV	r0,#0			;sum = 0
+	MOV	r1,#0			;i = 0, 计数器
+checksum_v1_loop
+	LDR	r3,[r2,r1,LSL #2]	;r3 = data[i]
+	ADD	r1,r1,#1		;r1 = i + 1
+	AND	r1,r1,#0xff		;i = (char)r1	*******
+	CMP	r1,#0x40		;compare i, 64
+	ADD	r0,r3,r0		;sum += r3
+	BCC	checksum_v1_loop	;if(i<64) loop
+	MOV	pc,r14			;return sum
+
+结论：
+	i是char型，超过255要归零，所以汇编程序中要确保其不超过255（AND r1,r1,#0xff）。
+		上述汇编共10条指令
+
+***如果将i由char更改为unsigned int，那么汇编指令只有9条，少了一条AND r1,r1,#0xff
+int checksum_v2(int *data)			
+{						
+	int i;
+	int sum = 0;
+	for(i = 0; i < 64; i++)
+		sum += data[i];
+	return sum;
+}
+
+例2：16位数据求检验和
+
+short checksum_v3(short *data)
+{
+	unsigned int i;
+	short sum = 0;
+	for(i = 0; i < 64; i++)
+		sum = (short)(sum + data[i]);
+	return sum;
+}
+
+checksum_v3_s
+	MOV	r2,r0			;r2 = data
+	MOV	r0,#0			;sum = 0
+	MOV	r1,#0			;i = 0
+checksum_v3_loop
+	ADD	r3,r2,r1,LSL,#1		;r3 = $data[i]		******
+	LDRH	r3,[r3,#0]		;r3 = data[i]
+	ADD	r1,r1,#1		;i++
+	CMP	r1,#0x40		;compare i, 64
+	ADD	r0,r3,r0		;r0 = sum + r3
+	MOV	r0,r0,LSL #16					******	
+	MOV	r0,r0,ASR #16		;sum = (short)r0	******
+	BCC	checksum_v3_loop	;if(i<64) goto loop
+	MOV	pc,r14			;return sum
+讨论：
+	LDRH指令与LDR不同，不支持移位地址偏移，所以用一条指令单独计算地址
+	两次移位对应short数据类型
+	用data指针操作数据，避开数组
+	可以先用int计算，计算玩再返回short类型数据
+short checksum_v4(short *data)
+{
+	unsigned int i;
+	int sum = 0;
+	for(i = 0; i < 64; i++)
+		sum += *data++;
+	return (short)sum;
+}
+
+checksum_v4_s
+	MOV	r2,#0			;sum = 0
+	MOV	r1,#0			; i = 0
+checksum_v4_loop
+	LDRSH	r3,[r0],#2		;r3 = *(data++)		*******
+	ADD	r1,r1,#1		;i++
+	CMP	r1,#0x40		;compate i, 64
+	ADD	r2,r3,r2		;sum += r3
+	BCC	checksum_v4_loop	;if(sum<64) goto loop
+	MOV	r0,r2,LSL,#16					*******
+	MOV	r0,r0,ASR #16		;r0 = (short)sum	*******
+	MOV	pc,14			;return 0
+
+总结：
+	采用整型类型，省去了多余的移位操作，移位移动到了循环外
+	尽量使用int类型，仅使用cahr、short的溢出归零特性
