@@ -1,0 +1,55 @@
+获取目录列表
+	打开目录文件
+		#include <unistd.h>
+		DIR* opendir(const char * path);
+	打开参数path指定的目录，并返回DIR*形态的目录流，和fopen类似，接下来对目录的读取和搜索都要使用此返回值
+
+读出目录文件的内容
+	readdir执行成功则返回指向dirent结构的指针，以后每次调用都用新的目录来替换dirent结构。
+	如果有错误发生或读取到目录文件尾则返回NULL。
+		#inclue <sys/types.h>
+		#include <dirent.h>
+		struct dirent * readdir(DIR * dir);
+dirent目录结构
+	struct dirent
+	{
+		ino_t d_ino;		//此目录进入点的inode
+		ff_t d_off;		//目录文件开头至此目录进入点的位移
+		signed short int d_reclen; //d_name的长度，不包含NULL字符
+		unsigned char d_type;	//d_ame所指的文件类型
+		har d_name[256];	//文件名
+	}；
+
+关闭目录文件
+	#include <sys/types.h>
+	#include <dirent.h>
+	int closedir(DIR * dir);
+
+ls功能的实现
+#include <stdio.h>
+#include <sys/types.h> 
+#include <dirent.h>
+
+int main(int argc, char *argv[])
+{
+	DIR* dir;
+	struct dirent *p;
+	char* path;
+
+	if(argc == 1)
+		path = "./";
+	else
+		path = argv[1];
+	
+	dir = opendir(path);
+	p = readdir(dir);
+
+	while(p != NULL)
+	{
+		printf("%s\n", p->d_name);
+		p = readdir(dir);
+	}
+
+	cleosedir(dir);
+	return0;
+}
