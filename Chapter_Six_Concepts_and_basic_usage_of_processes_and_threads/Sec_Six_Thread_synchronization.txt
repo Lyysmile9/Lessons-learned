@@ -1,0 +1,150 @@
+线程同步
+	下面的例子验证了两个线程是并发执行的。
+	#include <stdio.h>
+	#include <unistd.h>
+	#include <stdlib.h>
+	#include <pthread.h>
+	
+	int run_now = 1;
+	char message[] = "Hello World";
+
+	void *thread_function(void *arg)
+	{
+		int print_count2 = 0;
+		while(printf_count2++ < 20)
+		{
+			if(run_now == 2) {
+				printf("2\n");
+				run_now = 1;
+			} else {
+				sleep(1);
+			}
+		}
+		sleep(3);
+	}
+
+	int main()
+	{
+		int res;
+		pthread_t a_thread;
+		void *thread_result;
+		int print_count1 = 0;
+		
+		res = pthread_create(&a_thread, NULL,
+			thread_function, (void *)message);
+		if (res != 0)
+		{
+			perror("Thread creation failed");
+			exit(EXIT_FAILURE);
+		}
+		while(print_count1++ < 20)
+		{
+			if(run_now == 1) {
+				printf("1\n");
+				run_now = 2;
+			} else {
+				sleep(1);
+			}
+		}
+		printf("\nWaiting for thread to finish...\n");
+		res = pthread_join(a_thread, &thread_result);
+		if(res != 0)
+		{
+			perror("Thread join failed");
+			exit(EXIT_FAILURE);
+		}
+		printf("Thread joined\n");
+		exit("EXIT_SUCCESS");
+	}
+
+讨论
+	由实验可知，两线程可以并发执行。
+	两个线程都使用查询方式执行，效率较低。
+	可以考虑使用信号量和互斥量的通信方式。
+
+用信号量同步线程
+	用于线程同步，由四个处理函数
+		#include <semaphore.h>
+		//初始化信号量
+		int sem_init(sem_t *sem, int pshared, unsigned int val);
+		//信号量减1
+		int sem_wait(sem_t *sem);
+		//信号量加1
+		int sem_post(sem_t *sem);
+		//销毁信号量
+		int sem_destory(sem_t *sem);
+	pshared：信号量类型，如为0，则为当前进程独享的信号量
+	val：信号量的初始值
+
+例：字母数目统计
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <semaphore.h>		//头文件、全局信号量对象
+
+sem_t bin_sem;
+#define WORK_SIZE 1024
+char work_area[WORK_SIZE];
+
+void *thread_function(void *arg)
+{
+	sem_wait(&bin_sem);	//线程函数，首先执行wait操作，如果bin_sem大于0，减1后向下执行；如果bin_sem为0，则线程阻塞。
+	while(strncmp("end", work_area, 3) != 0)
+	{
+		printf("You intput %d characters\n", strlen(work_area) - 1);
+		sem_wait(&bin_sem);
+	}
+	pthread_exit(NULL);
+}
+
+int main()
+{
+	int res;
+	pthread_t a_thread;
+	void *thred_result;
+	res = sem_init(&bin_sem, 0, 0);	//初始化信号量，初值为0导致另一线程阻塞
+	if(res != 0)
+	{
+		perror("Semaphore initialization failed");
+		exit(EXIT_FAILURE);
+	}
+	
+	res = pthread_create(&a_thread, NULL, thread_function, NULL);
+	if(res != 0)
+	{
+		perror("Thread creation failed");
+		exit(EXIT_FAILURE);
+	}
+	printf("Input some text.Enter 'end' to finish\n");
+	while(strncmp("end", work_area, 3) != 0)	//输入数据如果不是end，则将其置于工作区，并执行post操作，信号量加1.从而另一个线程可以从阻塞态恢复
+	{
+		fgets(work_area, WORK_SIZE, stdin);	//要求从键盘输入
+		sem_post(&bin_sem);	//新线程将会活跃
+	}
+	printf("\nWaiting for thread to finish...\n");
+	res = pthread_join(a_thread, &thread_result);	//执行完毕之后合并线程
+	if(res != 0)
+	{
+		perror("Thread join failed");
+		exit("EXIT_FAILURE");
+	}
+	printf("Thread joined\n");
+	sem_destroy(&bin_sem);	//注销信号量
+	exit(EXIT_SUCCESS);
+}
+运行结果：
+Input some text. Enter 'end' to finish
+aoki
+You input 4 characters
+end
+
+Waiting for thread to finish...
+Thread joined
+
+讨论
+	通过信号量，实现了两线程的同步操作
+	sem_wait()和sem_post都以原子方式工作。
+	信号量的值可以大于1。
+	当两个线程同时阻塞于sem_wait,如果有第三个线程执行了post操作，
+	那么前两个线程有一个会执行，另一个仍等待，且信号量的值仍为0。
