@@ -1,0 +1,73 @@
+线程属性
+	创建线程时可以指定线程的属性，需要首先创建一个属性对象，然后用这个属性对象作为参数去创建线程。
+	#include <pthread.h>
+	int pthread_attr_init(pthread_attr_t *attr);
+
+属性举例
+	如果不需要新创建的线程向主函数返回参数，也不需要初始线程等待创建的线程执行结束，此时可以指定新线程的属性为分离属性。
+	#include <pthread.h>
+	int pthread_attr_setdetachstate(
+		pthread_attr_t* attr,		//属性对象
+		int detachstate			//属性值
+		);
+	detachstate取值：
+		PTHREAD_CREATE_DETACHED：分离线程，无需使用pthread_join()函数合并。
+		PTHREAD_CREATE_JOINABLE：允许其他线程合并此线程
+例：分离线程
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+char message[] = "Hello World";
+int thread_finish = 0;		//定义结束标志
+
+void *thread_function(void *arg)
+{
+	printf("thread_function is runnig.Argument was %s\n", (char *)arg);
+	sleep(4);
+	printf(Second thread setting finished flag,and exiting now\n);
+	thread_finish = 1;
+	pthread_exit(NULL);
+}
+
+int main()
+{
+	int res;
+	pthread_t a_thread;	//定义线程标识符、属性对象标识
+	pthread_attr_t thread_attr;
+
+	res = pthread_attr_init(&thread_attr); //创建属性对象
+	if(res != 0)
+	{
+		perror("Attribute creation failed");
+		exit(EXIT_FAILURE);
+	}
+
+	res = pthread_attr_setdetachstate(&thread_attr,
+		PTHREAD_CREATE_DETACHED);	//属性对象赋值
+	if(res != 0)
+	{
+		perror("Setting detached attribute failed");
+		exit(EXIT_FAILURE);
+	}
+
+	res = pthread_create(&a_thread, &thread_attr,
+		thread_function,(void *)message);
+	if(res != 0)
+	{
+		perror("Thread creation failed");
+		exit(EXIT_FAILURE);
+	}
+
+	(void)pthread_attr_destroy(&thread_att); //销毁属性对象
+	
+	while(!thread_finished)	//等待新线程结束后，结束进程
+	{
+		printf("Waiting for thread to say it's finihed...\n");
+		sleep(1);
+	}
+
+	printf("Other thread finished, bye!\n);
+	exit(EXIT_SUCCESS);
+}
