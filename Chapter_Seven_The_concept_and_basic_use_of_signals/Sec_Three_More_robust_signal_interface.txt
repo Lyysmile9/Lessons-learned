@@ -1,0 +1,49 @@
+更健壮的信号接口
+	Unix规范提供了一个更加健壮的信号编程接口：sigaction，声明如下：
+		#include <signal.h>
+		int sigaction(int sig, const struct sigaction* act, struct sigaction* oact);
+	sig：接收到的信号
+	act：结构体变量，指定接收到信号后的动作
+	oact：旧结构体变量，由sigaction函数返回
+
+struct sigaction结构
+	该结构包含以下几个成员：
+		void(* sa_handler)(int)：与sig信号相连的动作，当收到sig信号后执行此函数。该参数可以被设置为SIG_DFL，或者SIG_IGN。
+		sigset_t sa_mask：该字段指定了一个信号集，该信号集将被加入到进程的信号屏蔽字当中，这是一组将被阻塞且不会传递给该进程的信号。
+		int sa_flags：信号函数选项标识。如果希望信号处理重置为默认处理方式，可将其设置为RESETHAND,如果希望设置为上一次设置的处理方式，可设置为RESTART。
+
+重写signal1.c
+#include <signal.h>
+#include <stdio.h>
+#include <unistd.h>
+
+void sig_alarm(int sig)
+{
+	printf("---the signal received is %d. \n", sig);
+}
+
+int main()
+{
+	struct sigaction act;
+	act.sa_handler = sig_alarm;
+	sigemptyset(&act.sa_mask);	//创建空的信号屏蔽字
+	act.sa_flags = SA_RESETHAND;	//重置为默认信号处理函数
+	sigaction(SIGINT, &act, 0);
+	while(1)
+	{
+		printf("waiting here!\n");
+		sleep(1);
+	}
+}
+运行结果：
+每隔一秒打印一行：
+waiting here！
+第一次按ctrl+c打印：
+---the signal received is 2.
+第二次按ctrl+c终止程序
+
+***如果将act.flags 赋值为 SA_RESTART，即重置相同信号处理函数***
+那么运行结果为：
+每隔一秒打印一行提示信息。
+每次按ctrl+c打印相同信息，一直按都不会退出。
+需要按ctrl+\给一个SIGQUIT信号退出
