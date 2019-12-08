@@ -69,3 +69,144 @@ shmctl函数
 	command：要采取的动作，例如删除共享内存。
 	buf：指向包含共享内存模式和访问权限的结构。
 	返回值：成功返回0，失败返回-1。
+
+举例
+	编写生产者、消费者程序
+		第一个程序(消费者)创建一个共享内存段，并将其中的内容显示出来。
+		第二个程序(生产者)连接到一个已有的共享内存段，并允许我们向其中写入数据。
+
+/*定义数据结构(share.h)*/
+#define TEXT_SZ 2048	//申请共享内存大小
+struct shared_use_st
+{
+	int written_by_you;
+	char some_text[TEXT_SZ];
+};
+
+/*消费者程序(customer.c)*/
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include "share.h"
+
+int main()
+{
+	int running = 1;
+	void *shared_memory = (void *)0;
+	struct shared_use_st *shared_stuff;
+	int shmid;
+	srand((unsigden int)getpid());
+	shmid = shmget((key_t)1234, sizeof(struct shared_use_st),
+		0666 | IPC_CREAT);	//生成一个共享内存标识符
+
+	if(shmid == -1)
+	{
+		fprintf(stderr, "shmget failed\n");
+		exit(EXIT_FAILURE);
+	}
+
+	shared_memory = shmat(shmid, (void *)0, 0);	//链接共享内存到自己的进程空间中，并把首地址返回
+	if(shared_memory == (void *) - 1) {
+		fprintf(stderr, "shmat failed\n");
+		exit(EXIT_FAILURE);
+	}
+	printf("Memory attached at %X\n", (int)shared_memory); //打印地址
+	shared_stuff = (struce shared_use_st *)shread_memory); //强制转换并赋值
+	shared_stuff->written_by_you = 0; //消费者将标志设为0
+	while(running)
+	{
+		if(shared_stuff->written_by_you) //检测标志，为1即生产者已放入数据
+		{
+			printf("You wrote:%s", shared_stuff->some_text);
+			sleep(rand() % 4);
+			shared_stuff->written_by_you = 0;	//设置标志位为0，表示数据已被取走
+			if(strncmp(shared_stuff->some_text, "end", 3) == 0)	//判断程序是否需要结束
+			{
+				running = 0;
+			}
+		}
+	}
+
+	if(shmdt(shared_memory) == -1)	//把共享内存从自己的进程地址空间中分离
+	{
+		fprintf(stderr, "shmdt failed\n");
+		exit(EXIT_FAILURE);
+	}
+
+	if(shmctl(shmid, IPC_RMID, 0) == -1)	//删除共享内存，归还资源
+	{
+		fprintf(stderr, "shmctl(IPC_RMID) failed\n");
+		exit(EXIT_FAILURE);
+	}
+	exit(EXIT_SUCCESS);
+}
+
+/*生产者程序(producer.c)*/
+#include <unistd.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include "share.h"
+
+int main()
+{
+	int running = 1;
+	void *shared_memory = (void *)0;
+	struct shared_use_st *shared_stuff;
+	char buffer[BUFSIZ];
+	int shmid;
+	shmid = shmget((key_t)1234, sizeof(struct shared_use_st),
+		0666 | IPC_CREAT);	//用同一个key值调用shmget函数，获得和消费者同样的共享内存标识符
+
+	if(shmid == -1)
+	{
+		fprintf(stderr, "shmget failed\n");
+		exit(EXIT_FAILURE);
+	}
+	
+	shared_memory = shmat(shmid, (void *)0, 0);	//将共享内存链接到自己的进程地址空间中
+	if(shared_memory == (void *) - 1)
+	{
+		fprintf(stderr, "shmat failed\n");
+		exit(EXIT_FAILURE);
+	}
+
+	printf("Memory attached at %X\n", (int)shared_memory); //输出共享内存的首地址
+
+	shared_stuff = (struct shared_use_st *)shared_memory; //把返回的共享内存首地址指针做强制类型转换
+	while(running)
+	{
+		while(shared_stuff->written_by_you == 1)  //代表曾经写入数据，但消费者还没有取走数据
+		{
+			sleep(1);
+			printf("waiting for client...\n");
+		}
+
+		printf("Enter some text: ");
+		fgets(buffer, BUFSIZ, stdin);	//要求输入，并将数据放入buffer
+
+		strncpy(shared_stuff->some_text, buff, TEXT_SZ); //将buffer中的数据拷贝到共享内存
+		shared_stuff->written_by_you = 1; //将标志设为1，表示写入新的数据到共享内存中
+		if(strncmp(buffer, "end", 3) == 0) //判断程序是否需要结束
+		{
+			running = 0;
+		}
+	}
+}
+
+运行结果：
+先运行消费者程序：		然后运行生产者程序：
+Memory attached at 98001000	Memory attached at 9E8F6000
+				Enter some text:123	//等待输入，输入数据后，消费者接收到数据
+You wrote: 123			Waiting for client ...
+				Enter some text:end
+You wrote: end			producer exit
+customer exit				
+
