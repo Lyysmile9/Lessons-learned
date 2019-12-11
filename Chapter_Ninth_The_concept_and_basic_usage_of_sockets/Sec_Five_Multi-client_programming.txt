@@ -1,0 +1,91 @@
+多客户
+	考虑前述server/client例子
+		服务器程序在接受来自客户的一个新连接时，会创建一个新的套接字，而原来的监听套接字将被保留以继续监听以后的连接。
+		如果服务器不能立刻接受后来的连接，他们将被放到队列中等待处理。
+	如果服务器调用fork创建自身的拷贝，打开的套接字会被子进程继承，那么子进程可以为客户服务，而父进程继续监听后续客户请求。
+
+例：
+/*服务器端程序*/
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <unistd.h>
+
+int main()
+{
+	int server_sockfd, client_sockfd;
+	int server_len, client_len;
+	struct sockaddr_in server_address;
+	struct sockaddr_in client_address;
+	server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	server_address.sin_family = AF_INET;
+	server_address.sin_addr.s_addr = htonl(INADDR_ANY);
+	server_address.sin_port = htons(9734);
+	server_len = sizeof(server_address);
+	bind(server_sockfd, (struct sockaddr *)&server_address,
+		server_len);
+	listen(server_sockfd, 5);
+	signal(SIGCHLD, SIG_IGN);
+	while(1)
+	{
+		char ch;
+		printf("server waiting\n");
+		client_len = sizeof(client_address);
+		client_sockfd = accept(server_sockfd,
+			(struct sockaddr *)&client_address, &client_len);
+		if((fork == 0))
+		{
+			read(client_sockfd, &ch, 1);
+			sleep(5);
+			ch++;
+			write(client_sockfd, &ch, 1);
+			close(client_sockfd);
+			exit(0);
+		}
+		else
+		{
+			close(client_sockfd);
+		}
+	}
+}
+
+/*客户端程序*/
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <stdio.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+
+int main()
+{
+	int sockfd;
+	int len;
+	struct sockaddr_in address;
+
+	int result;
+	char ch = 'A';
+	sockfd = socket(AF_INET, SOCK_STRAM, 0);
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = inet_addr("127.0.0.1");
+	address.sin_port = htons(9734);
+	len = sizeof(address);
+	result = connect(sockfd, (struct sockaddr *)&address, len);
+	if(result == -1)
+	{
+		perror(oops:client2");
+		exit(1);
+	}
+	write(sockfd, &ch, 1);
+	read(sockfd, &ch, 1);
+	printf("char from server = %c\n", ch);
+	close(sockfd);
+	exit(0);
+}
+
+分析
+	服务器程序创建新进程来处理每个客户，可以看到有多个服务器进程在运行，每个进程负责处理一个客户请求进程。
+	多进程并不是最佳方案，因为服务器程序肯恶搞比较大，影响效率；同时，多进程在访问数据库时存在同步问题。
+	更好的多客户处理方式：select系统调用
