@@ -1,0 +1,76 @@
+多文件模块实例
+/*module2/t1.c*/
+#include <linux/init.h>
+#include <linux/module.h>
+int init_module(void)
+{
+	printk(KERN_ALERT "Hi,hello world\n");
+	return 0;
+}
+MODULE_LICENSE("GPL v2");
+
+/*module2/t2.c*/
+#include <linux/init.h>
+#include <linux/module.h>
+void cleanup_module(void)
+{
+	printk(KERN_ALERT "Hi goodbye world!\n");
+}
+MODULE_LICENSE("GPL v2");
+
+/*多文件模块的Makefile*/
+KVERS = $(shell uname -r)
+obj-m += test.o
+test-objs := t1.o t2.o	//列出所有目标文件
+build:kernel_modules
+kernel_modules:
+	make -C /lib/modules/$(KVERS)/build M=$(CURDIR) modules
+clean:
+	make -C	/lib/modules/$(KVERS)/build M=$(CURDIR) clean 
+
+/*一个更具普遍性的模块实例*/
+#include <linux/init.h>
+#include <linxu/module.h>
+
+static int number = 100;		//定义模块参数
+module_param(number, int, S_IRUGO);
+static int __init normal_init(void)	//__init 性能优化，若模块不是作为动态加载方式插入内核，而是编译到内核，模块加载完后将会释放所占内存空间
+{
+	printk(KERN_INFO "the number is: %d\n", number);
+	return 0;
+}
+module_init(normal_init);
+
+static void __exit normal_exit(void)	//模块卸载函数，__exit 性能优化
+{
+	printk(KERN_INFO "module normal finished!\n");
+}
+module_exit(normal_exit);
+/*自定义函数*/
+void just_a_try(void)
+{
+	printk(KERN_INFO "just a try!\n");
+}
+EXPORT_SYMBOL_GPL(just_a_try);	//导出该函数的内核符号表
+MODULE_LICENSE("GPL v2");
+
+/*引用其他模块导出的符号实例*/
+#include <linux/init.h>
+#Include <linux/module.h>
+
+extern void just_a_try(void)	//声明引用
+
+static int __init test_init(void)
+{
+	printk(KERN_ALERT "Can you see the symbol exported before?\n);
+	just_a_try();	//函数调用
+	return 0；
+}
+module_init(test_init);
+
+static void __exit test_exit(void)
+{
+	printk(KERN_ALERT "module test finished\n");
+}
+module_exit(test_exit);
+MODULE_LICENSE("GPL v2");
