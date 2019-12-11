@@ -31,7 +31,6 @@ cat /home/xm/HEAD | while read -r -a word;
 				mv $currentdir/out/linux_atlas7 $currentdir/out/backup/linux_atlas7_$words
 				elif [[ "$word" == "$words" ]]; then
 				echo "Is up to date..."
-				break  
 			fi
 
 		rm -rf /home/xm/HEAD /home/xm/gitpull
