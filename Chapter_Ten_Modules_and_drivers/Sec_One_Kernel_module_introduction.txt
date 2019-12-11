@@ -1,0 +1,74 @@
+主流操作系统类型
+	微内核体系结构
+		内核只负责进程管理、内存管理、中断管理.
+		文件系统、网络协议等其他部分运行于用户空间。
+		可扩展性好，不同层次之间消息传递开销比较大。
+	单一体系结构内核
+		内核是一个大程序，包括了操作系统的所有部分。
+		所有模块都集成在一起，系统的速度、性能比较好，可扩展性和维护性相对差。
+	采用模块机制
+		内核可以做的很小，在内核中设计一些模块的接口，可以动态载入和移除模块，内核管理所有模块的运行，而系统功能的可扩展性留给模块去完成。
+
+什么是模块
+	模块全称：动态可加载内核模块(loadable kernel module，LKM)
+	模块(module)是在内核空间运行的程序，实际是一种目标对象文件，没有链接，不能独立运行，但是其代码可以在运行时链接到系统中作为内核的一部分运行或从内核取下，从而可以动态扩充内核的功能。
+	模块一般由一组函数或数据结构组成，模块运行于核心态，不会被交换出内存。
+	Linux的设备驱动程序大都采用模块方式实现。
+
+使用模块机制的有点
+	使得内核结构更加紧凑和灵活。
+	系统如果需要新功能，只要编译相应的模块然后插入即可。
+	模块一旦链接到内核，就与内核中原有的代码完全等价。
+
+模块使用程序介绍
+	insmod：向正在运行的内核加载模块
+	lsmod：显示当前加载的内核模块信息
+	rmmod：从当前运行的内核中卸载内核模块
+	depmod：处理可加载内核模块的依赖关系
+	modprobe：利用depmod创建的依赖文件来自动加载相关的模块
+	modinfo：获取模块信息
+
+Linux内核模块程序结构
+	模块加载函数init_module()：当通过insmod或者modprobe命令加载模块时，会被内核自动执行，主要用于完成本模块的初始化工作。
+	模块卸载函数cleanup_module()：当通过rmmod命令卸载某模块时，会被内核自动执行，完成与模块加载相反的工作。
+	模块许可证声明MODULE_LICENSE()：描述内核模块的许可权限，如不加则提示内核被污染的警告，常用许可证有"GPL"、”GPL v2“等。
+	模块参数(可选)
+	模块导出符号(可选)
+	模块作者声明等(可选)
+
+最简模块实例
+#include <linux/init.h>
+#include <linux/module.h>
+
+int init_module(void)
+{
+	printk(KERN_ALERT "hello world!\n");	//内核空间输出函数
+	return 0;
+}
+
+void cleanup_module(void)
+{
+	printk(KERN_ALERT "gooby world!\n");
+}
+
+MODULE_LICENSE("GPL v2");
+
+/*Makefile*/
+KVERS = $(shell uname -r) //获取当前Linux版本号，进而获取内核源码树目录
+obj-m += hello.o	//以模块形式编译该程序
+/*编译规则*/
+build:kernel_modules
+kernel_modules:
+	make -C /lib/modules/$(KVERS)/build M=$(CURDIR) modules
+/*清空目标文件规则*/
+clean:
+	make -C /lib/modules/$(KVERS)/build M=$(CURDIR) clean
+
+/*操作步骤*/
+$sudo -i
+#make
+#insmod hello.ko
+#lsmod
+#rmmod hello
+#lsmod
+#less /var/log/kern.log | tail -5
