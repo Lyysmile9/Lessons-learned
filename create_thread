@@ -1,0 +1,28 @@
+zm_create_thread(_input_event_thrd, (void *)i, ZM_THREAD_PRIO_HIGH)
+Linux:
+	ZM_THREAD zm_create_thread(PFN_THREAD_ENTRY fn, void *param, int prio)
+	{
+		struct _THREAD_ *thrd;
+		thrd = malloc(sizeof(*thrd));
+		assert(thrd);
+		thrd->fn = fn;
+		thrd->param = param;
+		thrd->prio = prio;
+		zm_event_init(&thrd->ready_event);
+		pthread_create(&thrd->t, NULL, (void *)_create_thrd_fn, thrd);
+		zm_event_wait(&thrd->ready_event, ZM_TIMEOUT_INFINITY);
+		zm_event_deinit(&thrd->ready_event);
+		return (ZM_THREAD)thrd;
+	}
+
+	static void _create_thrd_fn(void *param)
+	{
+		struct _THREAD_ *thrd = param;
+		zm_set_thread_priority(ZM_THREAD_SELF, thrd->prio);
+	#ifdef PLATFORM_LINUX
+		thrd->tid = syscall(SYS_gettid);
+	#endif
+		zdebug("thrd tid is %d\n", thrd->tid);
+		zm_event_set(&thrd->ready_event);
+		thrd->fn(thrd->param);
+	}

@@ -1,0 +1,15 @@
+app_mgr.c:
+	app_mgr_init()
+		app_mgr.input_handle = register_input_event_callback_force(_input_event_callback, 0);
+ui_input.c:
+	register_input_event_callback_force(PFN_INPUT_EVENT_CALLBACK cb, unsigned long param)
+		_register_input_event_callback(cb, param, true)
+			entry->force = force; entry->cb = cb; entry->param = param;
+			return struct EVENT_CB_ENTRY *entry dlist_add_tail(&event_cbs, &entry->list)
+	struct EVENT_CB_ENTRY {
+		PFN_INPUT_EVENT_CALLBACK cb;
+		unsigned long param;
+		int force;
+		struct DLIST list;
+	}
+

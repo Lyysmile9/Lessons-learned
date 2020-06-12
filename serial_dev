@@ -1,0 +1,62 @@
+car_link_zm_ahd.c:
+	zm_ahd_init()
+	{
+		...
+		serial_inst = serial_init_by_cfg_file(
+			"app/services/serial_dev_master_comm.xml",
+			(PFN_SERIAL_DATA_IN_CALLBACK)bagoo_carlink_msg_data_in, 0);
+			...
+	}
+
+serial_dev.c:
+	ZM_HANDLE serial_init_by_cfg_file(char *config_file,
+		PFN_SERIAL_DATA_IN_CALLBACK data_in_cb, unsigned log priv_info)
+	{
+		struct SERIAL_DEV_CONFIG dev_cfg;
+		if (!_read_config(config_file, &dev_cfg))
+			return ZM_HANDLE_INVALID;
+		return serial_init(&dev_cfg, data_in_cb, priv_info);
+	}
+
+	static int _read_config(char *config_file, struct SERIAL_DEV_CONFIG *config)
+	{
+		...
+		if (param_open_key(key, platform_info()->board_name, &plt_key)) {
+			if (!param_read_string(plt_key, (char *)"dev",
+			config->dev_path, sizeof(config->dev_path)))
+			goto exit;
+		}
+		if (!param_read_s32(key, (char *)"baud_rate", &config->baudrate)
+			|| !param_read_s32(key, (char *)"data_bits", &config->databits)
+			|| !param_read_s32(key, (char *)"stop_bits", &config->stopbits)
+			|| !param_read_s32(key, (char *)"parity", &config->parity)) {
+				zerror("failed to read serial dev config.\n");
+				goto exit;
+		}
+		...
+	}
+
+	ZM_HANDLE serial_init(struct SERIAL_DEV_CONFIG *dev_cfg,
+		PFN_SERIAL_DATA_IN_CALLBACK data_in_cb, unsigned long priv_info)
+	{
+		ZM_HANDLE handle;
+		struct SERIAL_INSTANCE *inst = NULL;
+		if (!dev_cfg)
+			return ZM_HANDLE_INVALID;
+
+		if (ZM_HANDLE == (handle = pal_serial_init(dev_cfg)))
+			return ZM_HANDLE_INVALID;
+		inst = (struct SERIAL_INSTANCE *)malloc(sizeof(*inst));
+		assert(inst);
+		inst->exit = false;
+		inst->serial_handle = handle;
+		dlist_init(&inst->write_list);
+		zm_mutex_init(&inst->write_lock);
+		zm_event_init(&inst->write_event);
+		inst->write_thrd = zm_create_thread(_serial_write_thrd, inst, ZM_THREAD_PRIO_HIGH);
+		inst->data_in_cb = data_in_cb;
+		inst->cb_priv_info = priv_info;
+		if (data_in_cb)
+			inst->read_thrd = zm_create_thread(_serial_read_thrd, inst, _THREAD_PRIO_HIGH);
+		return (ZM_HANDLE)inst;
+	}
